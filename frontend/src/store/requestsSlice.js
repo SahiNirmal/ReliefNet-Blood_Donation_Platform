@@ -55,6 +55,7 @@ const requestsSlice = createSlice({
     error: null,
     filters: { bloodGroup: "all", urgency: "all" },
     respondedRequestIds: [], // requests this donor has already responded to, this session
+    respondedDonations: {}, // map of requestId -> donation
   },
   reducers: {
     setFilters(state, action) {
@@ -92,8 +93,11 @@ const requestsSlice = createSlice({
         // the same as fulfilling. Just remember it locally so the UI can
         // show "Responded" instead of the Respond button again.
         state.respondedRequestIds.push(action.payload.requestId);
+        if (action.payload.donation) {
+          state.respondedDonations[action.payload.requestId] = action.payload.donation;
+        }
       })
-            .addCase(updateRequestStatus.fulfilled, (state, action) => {
+      .addCase(updateRequestStatus.fulfilled, (state, action) => {
         const idx = state.items.findIndex((r) => r._id === action.payload._id);
         if (idx !== -1) {
           // The PATCH response has `requester` as a bare id; keep the
@@ -107,4 +111,3 @@ const requestsSlice = createSlice({
 
 export const { setFilters, requestReceivedViaSocket } = requestsSlice.actions;
 export default requestsSlice.reducer;
-

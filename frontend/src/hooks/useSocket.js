@@ -59,14 +59,27 @@ export function useSocket() {
       );
     }
 
+    // A user receives this when the other party sends them a chat message in real time
+    function handleChatNotification({ senderName, message, patientName }) {
+      dispatch(
+        pushNotification({
+          message: `💬 Message from ${senderName} (${patientName}): "${
+            message.length > 50 ? message.slice(0, 50) + "..." : message
+          }"`,
+        })
+      );
+    }
+
     socket.on("new-request", handleNewRequest);
     socket.on("new-response", handleNewResponse);
     socket.on("request-fulfilled", handleRequestFulfilled);
+    socket.on("chat:notification", handleChatNotification);
 
     return () => {
       socket.off("new-request", handleNewRequest);
       socket.off("new-response", handleNewResponse);
       socket.off("request-fulfilled", handleRequestFulfilled);
+      socket.off("chat:notification", handleChatNotification);
     };
   }, [user, dispatch]);
 }

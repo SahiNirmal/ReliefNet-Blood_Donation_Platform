@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import PulseDivider from "../components/PulseDivider";
 import StatusBadge from "../components/StatusBadge";
 import RespondModal from "../components/RespondModal";
+import ChatModal from "../components/ChatModal";
 import { useAuth } from "../hooks/useAuth";
 import { useFetch } from "../hooks/useFetch";
 import { useGeolocation } from "../hooks/useGeolocation";
@@ -17,6 +18,7 @@ export default function DonorDashboard() {
   const [saveFailed, setSaveFailed] = useState(false);
   const [modalRequest, setModalRequest] = useState(null);
   const [confirming, setConfirming] = useState(false);
+  const [activeChatDonation, setActiveChatDonation] = useState(null);
 
   useEffect(() => {
     if (location && user?._id && !locationSaved) {
@@ -26,13 +28,11 @@ export default function DonorDashboard() {
           setLocationSaved(true);
           setSaveFailed(false);
         })
-        // Previously swallowed silently. A donor whose location never reaches
-        // the server can't be matched by distance, so say so on screen.
         .catch(() => setSaveFailed(true));
     }
   }, [location, user?._id, locationSaved]);
 
-  const { items: matches, status: matchesStatus, respondedRequestIds } = useSelector((s) => s.requests);
+  const { items: matches, status: matchesStatus, respondedRequestIds, respondedDonations } = useSelector((s) => s.requests);
   useEffect(() => {
     if (!user?.bloodGroup) return;
     const params = { bloodGroup: user.bloodGroup, status: "open" };
@@ -45,7 +45,7 @@ export default function DonorDashboard() {
   }, [dispatch, user?.bloodGroup, location]);
   const matchesLoading = matchesStatus === "loading";
 
-  const { data: donationHistory, loading: historyLoading } = useFetch(
+  const { data: donationHistory, loading: historyLoading, refetch: refetchHistory } = useFetch(
     () => (user?._id ? api.get(`/donations?donorId=${user._id}`) : Promise.resolve([])),
     [user?._id]
   );
@@ -60,6 +60,7 @@ export default function DonorDashboard() {
     try {
       await dispatch(respondToRequest({ request: modalRequest })).unwrap();
       setModalRequest(null);
+      if (refetchHistory) refetchHistory();
     } catch {
       // Modal stays open with the button re-enabled so they can retry.
     } finally {
@@ -137,6 +138,10 @@ export default function DonorDashboard() {
               <div className="flex flex-col divide-y divide-line">
                 {matches.map((r) => {
                   const responded = alreadyRespondedIds.has(r._id);
+                  const matchingDonation =
+                    donationHistory?.find((d) => (d.request?._id || d.request) === r._id) ||
+                    respondedDonations?.[r._id];
+
                   return (
                     <div key={r._id} className="flex items-center justify-between gap-3 py-3">
                       <div>
@@ -146,12 +151,33 @@ export default function DonorDashboard() {
                           {typeof r.distanceKm === "number" && ` · ${r.distanceKm.toFixed(1)} km away`}
                         </p>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                         <StatusBadge status={r.urgency} />
                         {responded ? (
-                          <span className="rounded-full border border-green/30 bg-green-tint px-4 py-1.5 text-xs font-medium text-green">
-                            Responded ✓
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-full border border-green/30 bg-green-tint px-3 py-1.5 text-xs font-medium text-green">
+                              Responded ✓
+                            </span>
+                            {matchingDonation && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setActiveChatDonation(
+                                    matchingDonation.request?.patientName
+                                      ? matchingDonation
+                                      : { ...matchingDonation, request: r }
+                                  )
+                                }
+                                className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:border-action hover:text-action"
+                                title="Chat with requester"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                </svg>
+                                Chat
+                              </button>
+                            )}
+                          </div>
                         ) : (
                           <button
                             onClick={() => setModalRequest(r)}
@@ -186,17 +212,31 @@ export default function DonorDashboard() {
                       <th className="pb-2 font-medium">Hospital</th>
                       <th className="pb-2 font-medium">Units</th>
                       <th className="pb-2 font-medium">Status</th>
+                      <th className="pb-2 font-medium text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
                     {donationHistory.map((h) => (
                       <tr key={h._id}>
                         <td className="py-3">{new Date(h.createdAt).toLocaleDateString()}</td>
-                        <td className="py-3">{h.request?.patientName || "—"}</td>
+                        <td className="py-3 font-medium">{h.request?.patientName || "—"}</td>
                         <td className="py-3 text-ink-soft">{h.hospital}</td>
                         <td className="py-3 font-mono">{h.units}</td>
                         <td className="py-3">
                           <StatusBadge status={h.status} />
+                        </td>
+                        <td className="py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => setActiveChatDonation(h)}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:border-action hover:text-action"
+                            title="Chat with requester"
+                          >
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                            Chat
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -214,6 +254,14 @@ export default function DonorDashboard() {
         onConfirm={handleConfirmRespond}
         confirming={confirming}
       />
+
+      {/* Real-Time Chat Modal */}
+      {activeChatDonation && (
+        <ChatModal
+          donation={activeChatDonation}
+          onClose={() => setActiveChatDonation(null)}
+        />
+      )}
     </div>
   );
 }

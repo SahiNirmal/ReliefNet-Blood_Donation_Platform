@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import StatusBadge from "../components/StatusBadge";
 import RequestCard from "../components/RequestCard";
+import ChatModal from "../components/ChatModal";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../api/client";
 import { fetchRequests, updateRequestStatus } from "../store/requestsSlice";
@@ -108,8 +109,8 @@ export default function RequesterDashboard() {
                   urgency: r.urgency,
                   postedAgo: new Date(r.createdAt).toLocaleDateString(),
                   contact: r.requester?.organization
-                   ? `${r.requester?.name || "Requester"} · ${r.requester.organization}`
-                     : r.requester?.name || "Requester",
+                    ? `${r.requester?.name || "Requester"} · ${r.requester.organization}`
+                    : r.requester?.name || "Requester",
                 }}
                 hideActions
               />
@@ -122,7 +123,7 @@ export default function RequesterDashboard() {
 }
 
 // One request row: shows its own status, an expandable list of donors
-// who've responded (with contact details), and status controls.
+// who've responded (with contact details), chat actions, and status controls.
 function RequestRow({ request, onStatusChanged }) {
   const dispatch = useDispatch();
   const [expanded, setExpanded] = useState(false);
@@ -130,8 +131,9 @@ function RequestRow({ request, onStatusChanged }) {
   const [responsesLoading, setResponsesLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [hasLiveUpdate, setHasLiveUpdate] = useState(false);
+  const [activeChatDonation, setActiveChatDonation] = useState(null);
 
-   function toggleExpanded() {
+  function toggleExpanded() {
     const next = !expanded;
     setExpanded(next);
     setHasLiveUpdate(false);
@@ -215,19 +217,19 @@ function RequestRow({ request, onStatusChanged }) {
           >
             <path d="M5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-         <div>
-         <p className="flex items-center gap-2 text-sm font-medium">
-         {request.patientName}
-         {hasLiveUpdate && (
-           <span className="rounded-full bg-crimson px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-            New response
-           </span>
-          )}
-         </p>
-        <p className="text-xs text-ink-soft">
-         {request.bloodGroup} · {request.hospital} · {new Date(request.createdAt).toLocaleDateString()}
-        </p>
-      </div>
+          <div>
+            <p className="flex items-center gap-2 text-sm font-medium">
+              {request.patientName}
+              {hasLiveUpdate && (
+                <span className="rounded-full bg-crimson px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                  New response
+                </span>
+              )}
+            </p>
+            <p className="text-xs text-ink-soft">
+              {request.bloodGroup} · {request.hospital} · {new Date(request.createdAt).toLocaleDateString()}
+            </p>
+          </div>
         </button>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -269,6 +271,20 @@ function RequestRow({ request, onStatusChanged }) {
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={res.status} />
+                    
+                    {/* Real-time chat with the responding donor */}
+                    <button
+                      type="button"
+                      onClick={() => setActiveChatDonation({ ...res, request })}
+                      className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:border-action hover:text-action"
+                      title="Open real-time chat with donor"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                      </svg>
+                      Chat
+                    </button>
+
                     {isOpen && res.status === "scheduled" && (
                       <button
                         onClick={() => handleMarkFulfilled(res._id, res.donor?._id)}
@@ -284,6 +300,14 @@ function RequestRow({ request, onStatusChanged }) {
             </div>
           )}
         </div>
+      )}
+
+      {/* Real-Time Chat Modal */}
+      {activeChatDonation && (
+        <ChatModal
+          donation={activeChatDonation}
+          onClose={() => setActiveChatDonation(null)}
+        />
       )}
     </div>
   );

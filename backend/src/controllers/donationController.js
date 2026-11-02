@@ -11,7 +11,11 @@ async function listDonations(req, res, next) {
 
     const donations = await Donation.find(filter)
       .populate("donor", "name phone email bloodGroup area")
-      .populate("request", "patientName hospital contactNumber requester")
+      .populate({
+        path: "request",
+        select: "patientName hospital contactNumber bloodGroup unitsNeeded urgency requester status",
+        populate: { path: "requester", select: "name phone email organization" },
+      })
       .sort({ createdAt: -1 });
 
     res.json(donations);
@@ -32,15 +36,20 @@ async function createDonation(req, res, next) {
     });
     const populated = await donation.populate([
       { path: "donor", select: "name phone email bloodGroup area" },
-      { path: "request", select: "patientName hospital contactNumber requester" },
+      {
+        path: "request",
+        select: "patientName hospital contactNumber bloodGroup unitsNeeded urgency requester status",
+        populate: { path: "requester", select: "name phone email organization" },
+      },
     ]);
 
     // Live-push to the requester who owns this request: they see the
     // donor's contact details appear immediately, without needing to
     // expand/reload their "Your requests" row to discover a response.
     const io = getIO();
-    if (io && populated.request?.requester) {
-      io.to(userRoom(populated.request.requester)).emit("new-response", populated.toObject());
+    const requesterId = populated.request?.requester?._id || populated.request?.requester;
+    if (io && requesterId) {
+      io.to(userRoom(requesterId)).emit("new-response", populated.toObject());
     }
 
     res.status(201).json(populated);
@@ -65,7 +74,11 @@ async function updateDonation(req, res, next) {
 
     const populated = await donation.populate([
       { path: "donor", select: "name phone email bloodGroup area" },
-      { path: "request", select: "patientName hospital contactNumber" },
+      {
+        path: "request",
+        select: "patientName hospital contactNumber bloodGroup unitsNeeded urgency requester status",
+        populate: { path: "requester", select: "name phone email organization" },
+      },
     ]);
     res.json(populated);
   } catch (err) {

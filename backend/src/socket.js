@@ -42,6 +42,34 @@ function initSocket(httpServer) {
     socket.join(userRoom(socket.userId));
     console.log(`Socket connected: user ${socket.userId} (${socket.userRole})`);
 
+    // Allows verified donor and requester to join the private real-time chat room
+    socket.on("join-chat", async ({ donationId }) => {
+      try {
+        if (!donationId) return;
+        const Donation = require("./models/Donation");
+        const donation = await Donation.findById(donationId).populate("request", "requester");
+        if (!donation) return;
+
+        const donorId = donation.donor?.toString();
+        const requesterId = donation.request?.requester?.toString();
+        const currentUserId = socket.userId?.toString();
+
+        if (socket.userRole === "admin" || currentUserId === donorId || currentUserId === requesterId) {
+          socket.join(`chat:${donationId}`);
+          console.log(`Socket ${socket.id} (user ${socket.userId}) joined room chat:${donationId}`);
+        }
+      } catch (err) {
+        console.error("Error joining chat room:", err.message);
+      }
+    });
+
+    socket.on("leave-chat", ({ donationId }) => {
+      if (donationId) {
+        socket.leave(`chat:${donationId}`);
+        console.log(`Socket ${socket.id} left room chat:${donationId}`);
+      }
+    });
+
     socket.on("disconnect", () => {
       console.log(`Socket disconnected: user ${socket.userId}`);
     });

@@ -7,6 +7,7 @@ const userRoutes = require("./routes/userRoutes");
 const requestRoutes = require("./routes/requestRoutes");
 const donationRoutes = require("./routes/donationRoutes");
 const statsRoutes = require("./routes/statsRoutes");
+const chatRoutes = require("./routes/chatRoutes");
 const { notFound, errorHandler } = require("./middleware/errorHandler");
 const sanitizeInputs = require("./middleware/sanitizeInputs");
 const { generalLimiter, authLimiter } = require("./middleware/rateLimiters");
@@ -65,6 +66,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/requests", requestRoutes);
 app.use("/api/donations", donationRoutes);
 app.use("/api/stats", statsRoutes);
+app.use("/api/chat", chatRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
